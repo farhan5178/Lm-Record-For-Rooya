@@ -4,7 +4,7 @@
  * Supports individual User/PC deletion and Delete All Data.
  */
 
-import { subscribeToSubmissions, isConnected } from './firebase-config.js';
+import { subscribeToSubmissions, fetchCloudSubmissions, isConnected } from './firebase-config.js';
 import { renderProductivityChart } from './chart-util.js';
 import { exportToExcel, exportToCSV } from './export-util.js';
 
@@ -98,22 +98,31 @@ function clearAllData() {
   }
 }
 
-function initDataFeed() {
+async function initDataFeed() {
+  loadDataForCurrentMode();
+  await refreshCloudFeed();
+  processAndRender();
+
   if (isConnected) {
     subscribeToSubmissions((docs) => {
       if (docs && docs.length > 0) {
-        allSubmissions = docs;
-      } else {
-        loadDataForCurrentMode();
+        docs.forEach(d => mergeNewRecord(d));
+        processAndRender();
       }
-      processAndRender();
     });
-  } else {
-    loadDataForCurrentMode();
-    processAndRender();
   }
 
   startAutoRefresh();
+}
+
+async function refreshCloudFeed() {
+  const projectId = localStorage.getItem('rooya_firebase_project_id');
+  if (projectId) {
+    const cloudDocs = await fetchCloudSubmissions(projectId);
+    if (cloudDocs && Array.isArray(cloudDocs) && cloudDocs.length > 0) {
+      cloudDocs.forEach(rec => mergeNewRecord(rec));
+    }
+  }
 }
 
 function loadDataForCurrentMode() {
@@ -126,13 +135,14 @@ function loadDataForCurrentMode() {
 
 function startAutoRefresh() {
   if (refreshIntervalTimer) clearInterval(refreshIntervalTimer);
-  refreshIntervalTimer = setInterval(() => {
+  refreshIntervalTimer = setInterval(async () => {
     if (autoRefreshEnabled) {
       document.getElementById('footer-last-updated').textContent = `Last Updated: ${new Date().toLocaleTimeString()}`;
       requestExtensionLogs();
+      await refreshCloudFeed();
       processAndRender();
     }
-  }, 10000);
+  }, 4000);
 }
 
 function processAndRender() {
@@ -489,6 +499,27 @@ function setupEventListeners() {
   const btnClearData = document.getElementById('btn-clear-data');
   if (btnClearData) {
     btnClearData.addEventListener('click', clearAllData);
+  }
+
+  const btnCloudSync = document.getElementById('btn-cloud-sync');
+  if (btnCloudSync) {
+    btnCloudSync.addEventListener('click', async () => {
+      const current = localStorage.getItem('rooya_firebase_project_id') || '';
+      const input = prompt('Enter your Firebase Project ID for Multi-PC Team Sync (e.g. rooya-tracker):', current);
+      if (input !== null) {
+        const trimmed = input.trim();
+        if (trimmed.length > 0) {
+          localStorage.setItem('rooya_firebase_project_id', trimmed);
+          alert(`Firebase Project ID set to "${trimmed}". Synchronizing live submissions from all team PCs...`);
+          await refreshCloudFeed();
+          processAndRender();
+        } else {
+          localStorage.removeItem('rooya_firebase_project_id');
+          alert('Cleared Firebase Project ID. Reverted to local PC mode.');
+          processAndRender();
+        }
+      }
+    });
   }
 
   document.getElementById('active-threshold').addEventListener('change', (e) => {

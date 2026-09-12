@@ -1,11 +1,11 @@
 /**
  * Firebase Firestore Configuration for Team Lead Dashboard
+ * Supports SDK snapshot listening and REST API polling across all team PCs.
  */
 
 import { initializeApp } from 'firebase/app';
-import { getFirestore, collection, getDocs, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
+import { getFirestore, collection, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
 
-// Default Firebase Client Credentials (Replace with your actual Firebase Project config)
 export const firebaseConfig = {
   apiKey: "AIzaSyYOUR_DEMO_FIREBASE_API_KEY",
   authDomain: "your-project-id.firebaseapp.com",
@@ -19,13 +19,15 @@ let db = null;
 let isConnected = false;
 
 try {
-  if (firebaseConfig.projectId && firebaseConfig.projectId !== 'your-project-id') {
+  const activeProjectId = localStorage.getItem('rooya_firebase_project_id') || firebaseConfig.projectId;
+  if (activeProjectId && activeProjectId !== 'your-project-id') {
+    firebaseConfig.projectId = activeProjectId;
     const app = initializeApp(firebaseConfig);
     db = getFirestore(app);
     isConnected = true;
-    console.log('[Dashboard Firebase] Connected to Firestore project:', firebaseConfig.projectId);
+    console.log('[Dashboard Firebase] Connected to Firestore project:', activeProjectId);
   } else {
-    console.warn('[Dashboard Firebase] Standard placeholder config active. Demo data mode active.');
+    console.warn('[Dashboard Firebase] Placeholder config active.');
   }
 } catch (err) {
   console.error('[Dashboard Firebase] Error initializing Firebase:', err);
@@ -33,9 +35,6 @@ try {
 
 export { db, isConnected };
 
-/**
- * Listen to live submissions collection from Firestore
- */
 export function subscribeToSubmissions(callback) {
   if (!db) {
     return null;
@@ -54,3 +53,36 @@ export function subscribeToSubmissions(callback) {
     return null;
   }
 }
+
+/**
+ * Universal REST API polling for multi-PC team sync
+ */
+export async function fetchCloudSubmissions(projectIdOverride) {
+  const projectId = projectIdOverride || localStorage.getItem('rooya_firebase_project_id') || firebaseConfig.projectId;
+  if (!projectId || projectId === 'your-project-id') return null;
+
+  try {
+    const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/submissions?pageSize=1000`;
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (!data.documents) return [];
+
+    return data.documents.map(doc => {
+      const f = doc.fields || {};
+      return {
+        id: doc.name.split('/').pop(),
+        userName: f.userName?.stringValue || 'Unknown User',
+        userId: f.userId?.stringValue || null,
+        pcId: f.pcId?.stringValue || 'PC-UNKNOWN',
+        timestamp: f.timestamp?.stringValue || new Date().toISOString(),
+        date: f.date?.stringValue || new Date().toISOString().split('T')[0],
+        action: f.action?.stringValue || 'submit'
+      };
+    }).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+  } catch (err) {
+    console.error('[Dashboard Firebase REST API Fetch Error]', err);
+    return null;
+  }
+}
+
