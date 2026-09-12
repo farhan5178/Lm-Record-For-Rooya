@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Rooya Productivity Tracker</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="card">
+    <div class="card-header">
+      <div class="header-title">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+        </svg>
+        <span>Rooya Annotation Tracker</span>
+      </div>
+      <div class="status-badge" id="status-badge">
+        <span class="status-dot"></span>
+        <span id="status-text">Checking...</span>
+      </div>
+    </div>
+
+    <div class="profile-section">
+      <div class="profile-item">
+        <span class="label">User Profile</span>
+        <span class="value user-value" id="val-user">--</span>
+      </div>
+      <div class="profile-item">
+        <span class="label">PC ID</span>
+        <span class="value pc-badge" id="val-pc">--</span>
+      </div>
+    </div>
+
+    <!-- Today's Counters Grid -->
+    <div class="section-label">TODAY'S ACTIVITY</div>
+    <div class="stats-grid">
+      <div class="stat-card primary">
+        <span class="stat-title">Submits</span>
+        <span class="stat-number green" id="val-today-submits">0</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-title">Skips</span>
+        <span class="stat-number orange" id="val-today-skips">0</span>
+      </div>
+    </div>
+
+    <!-- Total Lifetime Counters Grid -->
+    <div class="section-label">TOTAL ALL TIME</div>
+    <div class="stats-grid">
+      <div class="stat-card">
+        <span class="stat-title">Total Submits</span>
+        <span class="stat-number-sm" id="val-total-submits">0</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-title">Total Skips</span>
+        <span class="stat-number-sm" id="val-total-skips">0</span>
+      </div>
+    </div>
+
+    <div class="meta-section">
+      <div class="meta-row">
+        <span>Last Action:</span>
+        <strong id="val-last-time">--</strong>
+      </div>
+      <div class="meta-row" id="pending-sync-row" style="display: none;">
+        <span>Pending Sync:</span>
+        <span class="badge-warning" id="val-pending">0 queued</span>
+      </div>
+    </div>
+
+    <div class="actions-section">
+      <button id="btn-sync" class="btn btn-secondary">Sync Now</button>
+      <button id="btn-options" class="btn btn-outline">Settings</button>
+    </div>
+
+    <div id="settings-panel" class="settings-panel hidden">
+      <div class="settings-title">Tracker Settings</div>
+      
+      <label class="input-label">Operator Email / Username (Optional):</label>
+      <input type="text" id="cfg-custom-user" class="input-field" placeholder="e.g. farhan.sadik@rooya.ai">
+
+      <label class="input-label">Submit Button Selector:</label>
+      <input type="text" id="cfg-submit-sel" class="input-field" placeholder="button#submit-btn">
+
+      <label class="input-label">Skip Button Selector:</label>
+      <input type="text" id="cfg-skip-sel" class="input-field" placeholder="button#skip-btn">
+
+      <label class="input-label">Username DOM Selector:</label>
+      <input type="text" id="cfg-user-sel" class="input-field" placeholder="#user-profile-email">
+
+      <label class="input-label">Firebase Project ID:</label>
+      <input type="text" id="cfg-fb-project" class="input-field" placeholder="your-firebase-project-id">
+
+      <div class="settings-buttons">
+        <button id="btn-save-cfg" class="btn btn-primary">Save Settings</button>
+        <button id="btn-close-cfg" class="btn btn-text">Cancel</button>
+      </div>
+    </div>
+
+    <div class="credit-footer">
+      <span>Developed by <strong>Turjo</strong></span>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

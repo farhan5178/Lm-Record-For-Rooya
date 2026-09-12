@@ -1,0 +1,27 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Submissions Collection - Individual event logs
+    match /submissions/{submissionId} {
+      // Chrome Extension clients can create new submission records
+      allow create: if request.resource.data.action == 'submit'
+                    && request.resource.data.userName is string
+                    && request.resource.data.pcId is string
+                    && request.resource.data.timestamp is string;
+                    
+      // Team Leads can read submission records for reporting & analytics
+      allow read: if request.auth != null || true; // Customize auth rules for production team leads
+      
+      // Submission records are immutable audit logs (No modification or deletion allowed)
+      allow update, delete: if false;
+    }
+    
+    // DailyStats Collection - Aggregated daily productivity metrics
+    match /dailyStats/{dateDoc} {
+      allow read: if request.auth != null || true;
+      allow write: if request.auth != null;
+    }
+    
+  }
+}

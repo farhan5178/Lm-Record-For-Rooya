@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Rooya AI - Event Labeling Workstation</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app-layout">
+    
+    <!-- Left Sidebar matching Screenshot -->
+    <aside class="sidebar">
+      <div class="sidebar-top">
+        <div class="brand">
+          <span class="brand-logo">rooya</span>
+        </div>
+
+        <nav class="nav-menu">
+          <button class="nav-item active">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="nav-icon">
+              <rect x="3" y="3" width="7" height="7"/>
+              <rect x="14" y="3" width="7" height="7"/>
+              <rect x="14" y="14" width="7" height="7"/>
+              <rect x="3" y="14" width="7" height="7"/>
+            </svg>
+            <span>Data Labeling</span>
+          </button>
+          <button class="nav-item">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="nav-icon">
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+              <circle cx="12" cy="7" r="4"/>
+            </svg>
+            <span>Driver ID</span>
+          </button>
+        </nav>
+
+        <div class="current-info-card">
+          <div class="info-group">
+            <span class="info-label">Current Event Type</span>
+            <strong class="info-val">Cellphone Distracted Driving</strong>
+          </div>
+          <div class="info-group">
+            <span class="info-label">Current Fleet</span>
+            <strong class="info-val">CocaCola Qurayat</strong>
+          </div>
+        </div>
+      </div>
+
+      <div class="sidebar-bottom">
+        <div class="language-selector">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="lang-icon">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="2" y1="12" x2="22" y2="12"/>
+            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+          </svg>
+          <span>Language</span>
+        </div>
+
+        <div class="user-profile-box">
+          <div class="avatar-circle">F</div>
+          <div class="user-info-text">
+            <span id="user-profile-email" class="user-profile-email" title="farhan.sadik@rooya.ai">farhan.sadik@rooya.ai</span>
+          </div>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="logout-icon">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+            <polyline points="16 17 21 12 16 7"/>
+            <line x1="21" y1="12" x2="9" y2="12"/>
+          </svg>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content Workstation Area -->
+    <main class="main-content">
+      
+      <!-- Event Details Card -->
+      <section class="details-card">
+        <h3 class="card-title">Event details</h3>
+        <div class="details-grid">
+          <div class="field-item full-width">
+            <span class="field-label">Event ID</span>
+            <div class="field-value-box">
+              <span>da81bc77-4034-4091-9ca3-f87beac885f2</span>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="copy-icon"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            </div>
+          </div>
+          <div class="field-item">
+            <span class="field-label">Event Index</span>
+            <div class="field-value-box"><span>0</span></div>
+          </div>
+          <div class="field-item">
+            <span class="field-label">Event Type</span>
+            <div class="field-value-box"><span>Cellphone Distracted Driving</span></div>
+          </div>
+          <div class="field-item">
+            <span class="field-label">Timestamp</span>
+            <div class="field-value-box"><span>12-09-2026, 13:47:55</span></div>
+          </div>
+          <div class="field-item">
+            <span class="field-label">Fleet Name</span>
+            <div class="field-value-box">
+              <span>CocaCola Qurayat</span>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="copy-icon"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            </div>
+          </div>
+          <div class="field-item full-width">
+            <span class="field-label">Trip ID</span>
+            <div class="field-value-box">
+              <span>trip_ms_2026-09-12T07_47_40.973Z_JI0245I0845_amtl</span>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="copy-icon"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Video Feed Grid matching Screenshot -->
+      <section class="video-grid">
+        <div class="video-box">
+          <span class="video-title">Road facing</span>
+          <div class="video-frame road-frame">
+            <div class="play-overlay">
+              <svg viewBox="0 0 24 24" fill="currentColor" class="play-icon"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+            </div>
+          </div>
+        </div>
+        <div class="video-box">
+          <span class="video-title">Driver facing</span>
+          <div class="video-frame driver-frame">
+            <div class="play-overlay">
+              <svg viewBox="0 0 24 24" fill="currentColor" class="play-icon"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Action Footer Buttons matching Screenshot -->
+      <div class="action-bar-bottom">
+        <div class="stats-counter-banner">
+          <span>Page Submits: <strong id="page-submits-cnt">0</strong></span>
+          <span>Page Skips: <strong id="page-skips-cnt">0</strong></span>
+        </div>
+        <div class="btn-group-right">
+          <button id="skip-btn" class="btn-skip-text" type="button">Skip</button>
+          <button id="submit-btn" class="btn-submit-green" type="button">Submit</button>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
