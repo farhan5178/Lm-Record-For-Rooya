@@ -129,4 +129,17 @@ document.addEventListener('DOMContentLoaded', () => {
       loadStats();
     });
   });
+
+  const btnResetAll = document.getElementById('btn-reset-all');
+  if (btnResetAll) {
+    btnResetAll.addEventListener('click', () => {
+      if (confirm('Are you sure you want to clear all stored user logs and reset counters to 0?')) {
+        chrome.runtime.sendMessage({ type: 'CLEAR_ALL_LOGS' }, () => {
+          alert('All extension memory and user logs have been cleared successfully!');
+          settingsPanel.classList.add('hidden');
+          loadStats();
+        });
+      }
+    });
+  }
 });
