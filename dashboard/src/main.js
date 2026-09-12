@@ -4,7 +4,6 @@
  */
 
 import { subscribeToSubmissions, isConnected } from './firebase-config.js';
-import { generateSampleSubmissions } from './sample-data.js';
 import { renderProductivityChart } from './chart-util.js';
 import { exportToExcel, exportToCSV } from './export-util.js';
 
@@ -12,7 +11,6 @@ let allSubmissions = [];
 let activeThresholdMinutes = 10;
 let autoRefreshEnabled = true;
 let refreshIntervalTimer = null;
-let isDemoMode = false;
 
 document.addEventListener('DOMContentLoaded', () => {
   setupExtensionMessageBridge();
@@ -40,21 +38,17 @@ function setupExtensionMessageBridge() {
     }
   });
 
-  // Request stored logs from Chrome Extension on startup
   requestExtensionLogs();
   setInterval(requestExtensionLogs, 4000);
 }
 
 function requestExtensionLogs() {
-  if (!isDemoMode) {
-    window.postMessage({ type: 'REQUEST_EXTENSION_LOGS' }, '*');
-  }
+  window.postMessage({ type: 'REQUEST_EXTENSION_LOGS' }, '*');
 }
 
 function mergeNewRecord(record) {
   if (!record || !record.timestamp) return;
 
-  // Check if already present by timestamp + pcId + userName
   const exists = allSubmissions.some(s => 
     s.timestamp === record.timestamp && 
     s.pcId === record.pcId && 
@@ -64,7 +58,6 @@ function mergeNewRecord(record) {
   if (!exists) {
     allSubmissions.unshift(record);
     
-    // Save to localStorage
     try {
       const stored = JSON.parse(localStorage.getItem('rooya_real_submissions') || '[]');
       stored.unshift(record);
@@ -95,14 +88,10 @@ function initDataFeed() {
 }
 
 function loadDataForCurrentMode() {
-  if (isDemoMode) {
-    allSubmissions = generateSampleSubmissions();
-  } else {
-    try {
-      allSubmissions = JSON.parse(localStorage.getItem('rooya_real_submissions') || '[]');
-    } catch (e) {
-      allSubmissions = [];
-    }
+  try {
+    allSubmissions = JSON.parse(localStorage.getItem('rooya_real_submissions') || '[]');
+  } catch (e) {
+    allSubmissions = [];
   }
 }
 
@@ -438,21 +427,15 @@ function populateDropdownFilters(submissions) {
 }
 
 function setupEventListeners() {
-  const btnToggleDemo = document.getElementById('btn-toggle-demo');
-  if (btnToggleDemo) {
-    btnToggleDemo.addEventListener('click', () => {
-      isDemoMode = !isDemoMode;
-      if (isDemoMode) {
-        btnToggleDemo.innerHTML = '<span>Mode: Sample Demo Data (1,639)</span>';
-        btnToggleDemo.style.borderColor = '#f59e0b';
-        btnToggleDemo.style.color = '#f59e0b';
-      } else {
-        btnToggleDemo.innerHTML = '<span>Mode: Live Real Data</span>';
-        btnToggleDemo.style.borderColor = 'rgba(255, 255, 255, 0.1)';
-        btnToggleDemo.style.color = '#8b949e';
+  const btnClearData = document.getElementById('btn-clear-data');
+  if (btnClearData) {
+    btnClearData.addEventListener('click', () => {
+      if (confirm('Clear all test data and reset to 0 for this PC?')) {
+        localStorage.removeItem('rooya_real_submissions');
+        allSubmissions = [];
+        processAndRender();
+        requestExtensionLogs();
       }
-      loadDataForCurrentMode();
-      processAndRender();
     });
   }
 
