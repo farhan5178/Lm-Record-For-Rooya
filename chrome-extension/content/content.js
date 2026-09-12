@@ -23,7 +23,9 @@
   }
 
   window.addEventListener('message', (event) => {
-    if (event.data && event.data.type === 'REQUEST_EXTENSION_LOGS') {
+    if (!event.data) return;
+
+    if (event.data.type === 'REQUEST_EXTENSION_LOGS') {
       if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
         chrome.runtime.sendMessage({ type: 'GET_ALL_LOGS' }, (response) => {
           if (response && response.success && response.logs) {
@@ -36,17 +38,26 @@
         });
       }
     }
+
+    if (event.data.type === 'DELETE_USER_LOGS' && event.data.userName) {
+      if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
+        chrome.runtime.sendMessage({ type: 'DELETE_USER_LOGS', userName: event.data.userName });
+      }
+    }
+
+    if (event.data.type === 'CLEAR_EXTENSION_LOGS') {
+      if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
+        chrome.runtime.sendMessage({ type: 'CLEAR_ALL_LOGS' });
+      }
+    }
   });
 
   // --------------------------------------------------------------------------
   // 2. DOM USER EMAIL EXTRACTION
-  // Specifically searches for something@rooya.ai / something@rooya.com / email pattern
-  // Explicitly EXCLUDES Event Details & Fleet Card containers.
   // --------------------------------------------------------------------------
   function extractUserInfo() {
     const config = window.TRACKER_CONFIG || {};
 
-    // Priority 0: Check if user saved a custom username in popup settings
     if (config.CUSTOM_USERNAME && config.CUSTOM_USERNAME.trim().length > 0) {
       const custom = config.CUSTOM_USERNAME.trim();
       return { userName: custom, userId: custom.split('@')[0] };
@@ -54,7 +65,6 @@
 
     let userEmail = null;
 
-    // 1. Look specifically at bottom-left user profile selectors
     const profileSelectors = [
       '#user-profile-email',
       '.user-profile-email',
@@ -81,7 +91,6 @@
       } catch (e) {}
     }
 
-    // 2. Search DOM specifically for something@rooya.ai or email pattern (EXCLUDING Event details & Fleet cards)
     if (!userEmail) {
       const excludedSelectors = '.details-card, .current-info-card, .event-details, [class*="event"], [class*="fleet"]';
       const candidateElements = document.querySelectorAll('aside, sidebar, .sidebar, footer, .user-info-text, [class*="user"], [class*="profile"]');
@@ -93,7 +102,6 @@
         const text = attrVal || (el.textContent || el.innerText || '').trim();
 
         if (text && text.includes('@')) {
-          // Prefer @rooya.ai or @rooya.com email match
           const rooyaMatch = text.match(/([a-zA-Z0-9._%+-]+@rooya\.(ai|com))/i);
           if (rooyaMatch) {
             userEmail = rooyaMatch[1].toLowerCase();

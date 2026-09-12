@@ -61,6 +61,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  if (message.type === 'DELETE_USER_LOGS') {
+    handleDeleteUserLogs(message.userName)
+      .then((res) => sendResponse({ success: true, ...res }))
+      .catch((err) => sendResponse({ success: false, error: err.message }));
+    return true;
+  }
+
   if (message.type === 'CLEAR_ALL_LOGS') {
     handleClearAllLogs()
       .then((res) => sendResponse({ success: true, ...res }))
@@ -210,6 +217,17 @@ async function handleGetAllLogs() {
         });
       }
     );
+  });
+}
+
+async function handleDeleteUserLogs(userName) {
+  return new Promise((resolve) => {
+    chrome.storage.local.get(['submissionLogs'], (data) => {
+      const logs = (data.submissionLogs || []).filter(s => s.userName !== userName);
+      chrome.storage.local.set({ submissionLogs: logs }, () => {
+        resolve({ success: true, count: logs.length });
+      });
+    });
   });
 }
 
