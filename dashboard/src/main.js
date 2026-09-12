@@ -1,6 +1,7 @@
 /**
  * Main Controller for Rooya AI Team Lead Productivity Dashboard
  * Bridges Chrome Extension submissions and Firestore snapshots in real time.
+ * Supports User and PC record deletion.
  */
 
 import { subscribeToSubmissions, isConnected } from './firebase-config.js';
@@ -25,15 +26,12 @@ function setupExtensionMessageBridge() {
   window.addEventListener('message', (event) => {
     if (!event.data) return;
 
-    // 1. Single Live Event pushed from extension
     if (event.data.type === 'ROOYA_LIVE_SUBMISSION' && event.data.record) {
       console.log('[Dashboard Window Bridge] Received live submission:', event.data.record);
       mergeNewRecord(event.data.record);
     }
 
-    // 2. Full Extension Logs Response
     if (event.data.type === 'ROOYA_EXTENSION_LOGS_RESPONSE' && Array.isArray(event.data.logs)) {
-      console.log(`[Dashboard Window Bridge] Received ${event.data.logs.length} stored logs from extension.`);
       event.data.logs.forEach(rec => mergeNewRecord(rec));
     }
   });
@@ -57,14 +55,29 @@ function mergeNewRecord(record) {
 
   if (!exists) {
     allSubmissions.unshift(record);
-    
-    try {
-      const stored = JSON.parse(localStorage.getItem('rooya_real_submissions') || '[]');
-      stored.unshift(record);
-      if (stored.length > 1000) stored.pop();
-      localStorage.setItem('rooya_real_submissions', JSON.stringify(stored));
-    } catch (e) {}
+    saveLocalSubmissions();
+    processAndRender();
+  }
+}
 
+function saveLocalSubmissions() {
+  try {
+    localStorage.setItem('rooya_real_submissions', JSON.stringify(allSubmissions.slice(0, 1000)));
+  } catch (e) {}
+}
+
+function deleteUserRecords(userName) {
+  if (confirm(`Are you sure you want to delete all logs for user "${userName}"?`)) {
+    allSubmissions = allSubmissions.filter(s => s.userName !== userName);
+    saveLocalSubmissions();
+    processAndRender();
+  }
+}
+
+function deletePcRecords(pcId) {
+  if (confirm(`Are you sure you want to delete all logs for PC "${pcId}"?`)) {
+    allSubmissions = allSubmissions.filter(s => s.pcId !== pcId);
+    saveLocalSubmissions();
     processAndRender();
   }
 }
@@ -318,8 +331,18 @@ function renderSideBySideTable(userList) {
           ${u.isActive ? 'Active' : 'Idle'}
         </span>
       </td>
+      <td class="text-right">
+        <button class="btn btn-outline btn-del-user" data-user="${u.userName}" style="font-size: 10px; padding: 2px 8px; border-color: rgba(239, 68, 68, 0.4); color: #ef4444;">Delete</button>
+      </td>
     `;
     tbody.appendChild(tr);
+  });
+
+  tbody.querySelectorAll('.btn-del-user').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const targetUser = e.target.getAttribute('data-user');
+      deleteUserRecords(targetUser);
+    });
   });
 }
 
@@ -345,8 +368,18 @@ function renderUserTable(userList) {
           ${u.isActive ? 'Active' : 'Idle'}
         </span>
       </td>
+      <td class="text-right">
+        <button class="btn btn-outline btn-del-user" data-user="${u.userName}" style="font-size: 10px; padding: 2px 8px; border-color: rgba(239, 68, 68, 0.4); color: #ef4444;">Delete User</button>
+      </td>
     `;
     tbody.appendChild(tr);
+  });
+
+  tbody.querySelectorAll('.btn-del-user').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const targetUser = e.target.getAttribute('data-user');
+      deleteUserRecords(targetUser);
+    });
   });
 }
 
@@ -371,8 +404,18 @@ function renderPcTable(pcList) {
           ${p.isActive ? 'Active' : 'Idle/Offline'}
         </span>
       </td>
+      <td class="text-right">
+        <button class="btn btn-outline btn-del-pc" data-pc="${p.pcId}" style="font-size: 10px; padding: 2px 8px; border-color: rgba(239, 68, 68, 0.4); color: #ef4444;">Delete PC</button>
+      </td>
     `;
     tbody.appendChild(tr);
+  });
+
+  tbody.querySelectorAll('.btn-del-pc').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const targetPc = e.target.getAttribute('data-pc');
+      deletePcRecords(targetPc);
+    });
   });
 }
 
@@ -430,7 +473,7 @@ function setupEventListeners() {
   const btnClearData = document.getElementById('btn-clear-data');
   if (btnClearData) {
     btnClearData.addEventListener('click', () => {
-      if (confirm('Clear all test data and reset to 0 for this PC?')) {
+      if (confirm('Clear all test data and reset dashboard?')) {
         localStorage.removeItem('rooya_real_submissions');
         allSubmissions = [];
         processAndRender();
