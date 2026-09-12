@@ -29,12 +29,14 @@ function setupExtensionMessageBridge() {
     }
 
     if (event.data.type === 'ROOYA_EXTENSION_LOGS_RESPONSE' && Array.isArray(event.data.logs)) {
-      event.data.logs.forEach(rec => mergeNewRecord(rec));
+      allSubmissions = event.data.logs;
+      saveLocalSubmissions();
+      processAndRender();
     }
   });
 
   requestExtensionLogs();
-  setInterval(requestExtensionLogs, 4000);
+  setInterval(requestExtensionLogs, 3000);
 }
 
 function requestExtensionLogs() {
@@ -67,6 +69,7 @@ function deleteUserRecords(userName) {
   if (confirm(`Are you sure you want to delete all logs for user "${userName}"?`)) {
     allSubmissions = allSubmissions.filter(s => s.userName !== userName);
     saveLocalSubmissions();
+    window.postMessage({ type: 'DELETE_USER_LOGS', userName: userName }, '*');
     processAndRender();
   }
 }
@@ -75,6 +78,7 @@ function deletePcRecords(pcId) {
   if (confirm(`Are you sure you want to delete all logs for PC "${pcId}"?`)) {
     allSubmissions = allSubmissions.filter(s => s.pcId !== pcId);
     saveLocalSubmissions();
+    window.postMessage({ type: 'DELETE_PC_LOGS', pcId: pcId }, '*');
     processAndRender();
   }
 }

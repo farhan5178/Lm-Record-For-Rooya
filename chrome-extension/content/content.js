@@ -45,6 +45,12 @@
       }
     }
 
+    if (event.data.type === 'DELETE_PC_LOGS' && event.data.pcId) {
+      if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
+        chrome.runtime.sendMessage({ type: 'DELETE_PC_LOGS', pcId: event.data.pcId });
+      }
+    }
+
     if (event.data.type === 'CLEAR_EXTENSION_LOGS') {
       if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
         chrome.runtime.sendMessage({ type: 'CLEAR_ALL_LOGS' });

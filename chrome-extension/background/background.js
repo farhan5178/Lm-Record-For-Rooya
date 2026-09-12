@@ -68,6 +68,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  if (message.type === 'DELETE_PC_LOGS') {
+    handleDeletePcLogs(message.pcId)
+      .then((res) => sendResponse({ success: true, ...res }))
+      .catch((err) => sendResponse({ success: false, error: err.message }));
+    return true;
+  }
+
   if (message.type === 'CLEAR_ALL_LOGS') {
     handleClearAllLogs()
       .then((res) => sendResponse({ success: true, ...res }))
@@ -223,8 +230,61 @@ async function handleGetAllLogs() {
 async function handleDeleteUserLogs(userName) {
   return new Promise((resolve) => {
     chrome.storage.local.get(['submissionLogs'], (data) => {
+      const todayStr = new Date().toISOString().split('T')[0];
       const logs = (data.submissionLogs || []).filter(s => s.userName !== userName);
-      chrome.storage.local.set({ submissionLogs: logs }, () => {
+
+      let todaySubmits = 0, todaySkips = 0, totalSubmits = 0, totalSkips = 0;
+      logs.forEach(s => {
+        const action = s.action === 'skip' ? 'skip' : 'submit';
+        if (action === 'submit') {
+          totalSubmits++;
+          if (s.date === todayStr || (s.timestamp && s.timestamp.startsWith(todayStr))) todaySubmits++;
+        } else {
+          totalSkips++;
+          if (s.date === todayStr || (s.timestamp && s.timestamp.startsWith(todayStr))) todaySkips++;
+        }
+      });
+
+      chrome.storage.local.set({
+        submissionLogs: logs,
+        todaySubmits: todaySubmits,
+        todaySkips: todaySkips,
+        totalSubmits: totalSubmits,
+        totalSkips: totalSkips,
+        lastUserName: logs.length > 0 ? logs[0].userName : 'None detected'
+      }, () => {
+        resolve({ success: true, count: logs.length });
+      });
+    });
+  });
+}
+
+async function handleDeletePcLogs(pcId) {
+  return new Promise((resolve) => {
+    chrome.storage.local.get(['submissionLogs'], (data) => {
+      const todayStr = new Date().toISOString().split('T')[0];
+      const logs = (data.submissionLogs || []).filter(s => s.pcId !== pcId);
+
+      let todaySubmits = 0, todaySkips = 0, totalSubmits = 0, totalSkips = 0;
+      logs.forEach(s => {
+        const action = s.action === 'skip' ? 'skip' : 'submit';
+        if (action === 'submit') {
+          totalSubmits++;
+          if (s.date === todayStr || (s.timestamp && s.timestamp.startsWith(todayStr))) todaySubmits++;
+        } else {
+          totalSkips++;
+          if (s.date === todayStr || (s.timestamp && s.timestamp.startsWith(todayStr))) todaySkips++;
+        }
+      });
+
+      chrome.storage.local.set({
+        submissionLogs: logs,
+        todaySubmits: todaySubmits,
+        todaySkips: todaySkips,
+        totalSubmits: totalSubmits,
+        totalSkips: totalSkips,
+        lastUserName: logs.length > 0 ? logs[0].userName : 'None detected'
+      }, () => {
         resolve({ success: true, count: logs.length });
       });
     });
@@ -239,6 +299,9 @@ async function handleClearAllLogs() {
       todaySkips: 0,
       totalSubmits: 0,
       totalSkips: 0,
+      lastSubmissionTime: null,
+      lastAction: null,
+      lastUserName: 'None detected',
       offlineQueue: []
     }, () => {
       resolve({ success: true });
