@@ -1,9 +1,9 @@
 /**
  * Firebase Firestore Service for Chrome Extension Service Worker
  * Handles network syncing, offline queueing, and Firestore document creation.
+ * Ensures each User has 1 persistent device record in /userDevices collection.
  */
 
-// Default Firebase Configuration (Can be updated via popup settings or storage)
 export const DEFAULT_FIREBASE_CONFIG = {
   apiKey: "AIzaSyYOUR_DEMO_FIREBASE_API_KEY",
   authDomain: "your-project-id.firebaseapp.com",
@@ -13,9 +13,6 @@ export const DEFAULT_FIREBASE_CONFIG = {
   appId: "1:123456789:web:abcdef123456"
 };
 
-/**
- * Gets active Firebase config from storage or returns default
- */
 export async function getFirebaseConfig() {
   return new Promise((resolve) => {
     chrome.storage.local.get(['firebaseConfig'], (result) => {
@@ -28,9 +25,6 @@ export async function getFirebaseConfig() {
   });
 }
 
-/**
- * Convert plain JS object to Firestore Document Fields schema
- */
 function toFirestoreFields(obj) {
   const fields = {};
   for (const [key, value] of Object.entries(obj)) {
@@ -49,49 +43,57 @@ function toFirestoreFields(obj) {
 
 /**
  * Send submission record to Firestore REST API
+ * 1. Creates raw event document in /submissions
+ * 2. Upserts single device mapping document in /userDevices/{userName}
  */
 export async function sendSubmissionToFirestore(record) {
   const config = await getFirebaseConfig();
 
-  // If placeholder config is detected, simulate successful storage locally
   if (!config.projectId || config.projectId === 'your-project-id') {
-    console.warn('[Firebase Service] Using local mode / placeholder config. Document queued locally.');
     return { success: true, mode: 'local-storage' };
   }
 
-  const endpoint = `https://firestore.googleapis.com/v1/projects/${config.projectId}/databases/(default)/documents/submissions`;
-
-  const payload = {
-    fields: toFirestoreFields(record)
-  };
-
-  const response = await fetch(endpoint, {
+  // 1. Save raw submission event log
+  const submissionsEndpoint = `https://firestore.googleapis.com/v1/projects/${config.projectId}/databases/(default)/documents/submissions`;
+  const subResponse = await fetch(submissionsEndpoint, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify(payload)
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fields: toFirestoreFields(record) })
   });
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Firestore REST API HTTP ${response.status}: ${errorText}`);
+  if (!subResponse.ok) {
+    const errorText = await subResponse.text();
+    throw new Error(`Firestore REST API HTTP ${subResponse.status}: ${errorText}`);
   }
 
-  const responseData = await response.json();
-  return { success: true, mode: 'firestore', documentId: responseData.name };
+  // 2. Ensure 1 User -> 1 Device document mapping in /userDevices collection
+  const safeDocId = record.userName.replace(/[^a-zA-Z0-9]/g, '_');
+  const userDeviceEndpoint = `https://firestore.googleapis.com/v1/projects/${config.projectId}/databases/(default)/documents/userDevices/${safeDocId}?updateMask.fieldPaths=userName&updateMask.fieldPaths=pcId&updateMask.fieldPaths=lastSubmissionTime&updateMask.fieldPaths=date&updateMask.fieldPaths=lastAction`;
+
+  await fetch(userDeviceEndpoint, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      fields: toFirestoreFields({
+        userName: record.userName,
+        pcId: record.pcId,
+        lastSubmissionTime: record.timestamp,
+        date: record.date,
+        lastAction: record.action
+      })
+    })
+  });
+
+  return { success: true, mode: 'firestore' };
 }
 
-/**
- * Process offline submission queue from chrome.storage.local
- */
 export async function flushOfflineQueue() {
   return new Promise((resolve) => {
     chrome.storage.local.get(['offlineQueue'], async (result) => {
       const queue = result.offlineQueue || [];
       if (queue.length === 0) return resolve({ flushed: 0 });
 
-      console.log(`[Firebase Service] Attempting to flush ${queue.length} offline queued events...`);
+      console.log(`[Firebase Service] Flushing ${queue.length} offline queued events...`);
       const remainingQueue = [];
       let successCount = 0;
 

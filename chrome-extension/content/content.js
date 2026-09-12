@@ -39,100 +39,85 @@
   });
 
   // --------------------------------------------------------------------------
-  // 2. CLEAN EMAIL EXTRACTION HELPER
-  // Strips UI labels like Fleet, Tamkeen, Language, Data, avatar initials, and trailing text.
-  // --------------------------------------------------------------------------
-  function cleanEmail(rawText) {
-    if (!rawText) return null;
-
-    // Remove known Rooya UI noise words
-    let cleaned = rawText
-      .replace(/Fleet/gi, ' ')
-      .replace(/Tamkeen/gi, ' ')
-      .replace(/Language/gi, ' ')
-      .replace(/Driver/gi, ' ')
-      .replace(/Labeling/gi, ' ')
-      .replace(/Current/gi, ' ')
-      .replace(/Logged in as/gi, ' ')
-      .replace(/Data/gi, ' ')
-      .trim();
-
-    // Match email pattern
-    const emailRegex = /([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,4})/i;
-    const match = cleaned.match(emailRegex);
-
-    if (match) {
-      let email = match[1];
-
-      // Remove avatar initial prefix if concatenated e.g. "Ffarhan" -> "farhan"
-      if (/^[A-Z][a-z0-9._-]+@/.test(email) && /^[A-Z][a-z]/.test(email)) {
-        email = email.substring(1);
-      }
-
-      // Clean up TLD if trailing text concatenated e.g. ".aiData" -> ".ai"
-      email = email.replace(/(\.(ai|com|org|net|io|co|sa|ae|gov))[a-zA-Z]*$/i, '$1');
-
-      return email.toLowerCase().trim();
-    }
-
-    return null;
-  }
-
-  // --------------------------------------------------------------------------
-  // 3. DOM USER DATA EXTRACTION
+  // 2. DOM USER EMAIL EXTRACTION
+  // Specifically searches for something@rooya.ai / something@rooya.com / email pattern
+  // Explicitly EXCLUDES Event Details & Fleet Card containers.
   // --------------------------------------------------------------------------
   function extractUserInfo() {
     const config = window.TRACKER_CONFIG || {};
-    let userName = null;
-    let userId = null;
 
     // Priority 0: Check if user saved a custom username in popup settings
     if (config.CUSTOM_USERNAME && config.CUSTOM_USERNAME.trim().length > 0) {
-      return { userName: config.CUSTOM_USERNAME.trim(), userId: null };
+      const custom = config.CUSTOM_USERNAME.trim();
+      return { userName: custom, userId: custom.split('@')[0] };
     }
 
-    // Priority 1: Check configured USERNAME_SELECTOR
-    if (config.USERNAME_SELECTOR) {
+    let userEmail = null;
+
+    // 1. Look specifically at bottom-left user profile selectors
+    const profileSelectors = [
+      '#user-profile-email',
+      '.user-profile-email',
+      '.user-details',
+      '.user-profile-container',
+      '.profile-username',
+      '[data-testid="user-email"]'
+    ];
+
+    for (const selector of profileSelectors) {
       try {
-        const userEl = document.querySelector(config.USERNAME_SELECTOR);
-        if (userEl) {
-          const raw = userEl.getAttribute('title') || 
-                      userEl.getAttribute('data-email') || 
-                      userEl.getAttribute('aria-label') || 
-                      (userEl.textContent || userEl.innerText || '').trim();
-          userName = cleanEmail(raw);
+        const el = document.querySelector(selector);
+        if (el) {
+          const raw = el.getAttribute('title') || 
+                      el.getAttribute('data-email') || 
+                      el.getAttribute('aria-label') || 
+                      (el.textContent || el.innerText || '').trim();
+          const match = raw.match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/);
+          if (match) {
+            userEmail = match[1].toLowerCase();
+            break;
+          }
         }
-      } catch (err) {}
+      } catch (e) {}
     }
 
-    // Priority 2: Targeted scan of profile containers
-    if (!userName) {
-      const candidates = document.querySelectorAll('.user-profile-email, [class*="profile"], [class*="user"], [id*="profile"], [id*="user"]');
-      for (const el of candidates) {
+    // 2. Search DOM specifically for something@rooya.ai or email pattern (EXCLUDING Event details & Fleet cards)
+    if (!userEmail) {
+      const excludedSelectors = '.details-card, .current-info-card, .event-details, [class*="event"], [class*="fleet"]';
+      const candidateElements = document.querySelectorAll('aside, sidebar, .sidebar, footer, .user-info-text, [class*="user"], [class*="profile"]');
+
+      for (const el of candidateElements) {
+        if (el.closest && el.closest(excludedSelectors)) continue;
+
         const attrVal = el.getAttribute('title') || el.getAttribute('data-email') || el.getAttribute('data-username');
-        userName = cleanEmail(attrVal) || cleanEmail(el.textContent || el.innerText);
-        if (userName) break;
+        const text = attrVal || (el.textContent || el.innerText || '').trim();
+
+        if (text && text.includes('@')) {
+          // Prefer @rooya.ai or @rooya.com email match
+          const rooyaMatch = text.match(/([a-zA-Z0-9._%+-]+@rooya\.(ai|com))/i);
+          if (rooyaMatch) {
+            userEmail = rooyaMatch[1].toLowerCase();
+            break;
+          }
+
+          const genericMatch = text.match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/i);
+          if (genericMatch) {
+            userEmail = genericMatch[1].toLowerCase();
+            break;
+          }
+        }
       }
     }
 
-    // Priority 3: Scan entire sidebar/aside
-    if (!userName) {
-      const sidebars = document.querySelectorAll('aside, sidebar, .sidebar, footer');
-      for (const sb of sidebars) {
-        userName = cleanEmail(sb.textContent || sb.innerText);
-        if (userName) break;
-      }
+    if (!userEmail) {
+      userEmail = config.FALLBACK_USERNAME || 'Unknown User';
     }
 
-    if (!userName) {
-      userName = config.FALLBACK_USERNAME || 'Unknown User';
-    }
-
-    return { userName, userId };
+    return { userName: userEmail, userId: userEmail.includes('@') ? userEmail.split('@')[0] : userEmail };
   }
 
   // --------------------------------------------------------------------------
-  // 4. UNIVERSAL SUBMIT / SKIP BUTTON DETECTION
+  // 3. UNIVERSAL SUBMIT / SKIP BUTTON DETECTION
   // --------------------------------------------------------------------------
   function detectButtonAction(target) {
     if (!target) return null;
@@ -185,7 +170,7 @@
   }
 
   // --------------------------------------------------------------------------
-  // 5. CLICK EVENT LISTENER (CAPTURE PHASE)
+  // 4. CLICK EVENT LISTENER (CAPTURE PHASE)
   // --------------------------------------------------------------------------
   function handleDocumentClick(event) {
     const target = event.target;
