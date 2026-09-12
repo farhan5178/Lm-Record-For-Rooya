@@ -1,12 +1,12 @@
 /**
  * Content Script for Rooya AI Annotation Tracker
- * Detects Submit & Skip actions on annotation pages AND bridges live logs to the Team Lead Dashboard tab.
+ * Detects Submit & Skip actions across all frames and bridges live events to Dashboard tabs.
  */
 
 (function () {
   'use strict';
 
-  console.log('[Rooya Tracker] Content script active on:', window.location.href);
+  console.log('%c[Rooya Tracker Active]', 'color: #10b981; font-weight: bold; font-size: 14px;', 'Listening for Submit & Skip actions on:', window.location.href);
 
   let lastActionTimestamp = 0;
   let processingClick = false;
@@ -46,12 +46,10 @@
     let userName = null;
     let userId = null;
 
-    // Priority 0: Check if user manually saved a custom username in popup settings
     if (config.CUSTOM_USERNAME && config.CUSTOM_USERNAME.trim().length > 0) {
       return { userName: config.CUSTOM_USERNAME.trim(), userId: null };
     }
 
-    // Priority 1: Check configured USERNAME_SELECTOR
     if (config.USERNAME_SELECTOR) {
       try {
         const userEl = document.querySelector(config.USERNAME_SELECTOR);
@@ -64,9 +62,8 @@
       } catch (err) {}
     }
 
-    // Priority 2: Scan sidebar / profile containers for email or username
     if (!userName || userName.includes('...')) {
-      const candidates = document.querySelectorAll('aside, sidebar, .sidebar, footer, [class*="profile"], [class*="user"], [id*="profile"], [id*="user"]');
+      const candidates = document.querySelectorAll('aside, sidebar, .sidebar, footer, [class*="profile"], [class*="user"], [id*="profile"], [id*="user"], div, span');
       for (const el of candidates) {
         const attrVal = el.getAttribute('title') || el.getAttribute('data-email') || el.getAttribute('data-username');
         if (attrVal && attrVal.includes('@')) {
@@ -80,15 +77,6 @@
           userName = emailMatch[1];
           break;
         }
-
-        const parts = text.split(/\s+/);
-        for (const p of parts) {
-          if (p.includes('@') && p.length > 5) {
-            userName = p.replace(/[^a-zA-Z0-9._-@]/g, '');
-            break;
-          }
-        }
-        if (userName) break;
       }
     }
 
@@ -104,42 +92,65 @@
   }
 
   // --------------------------------------------------------------------------
-  // 3. SUBMIT / SKIP BUTTON DETECTION
+  // 3. UNIVERSAL SUBMIT / SKIP BUTTON DETECTION
   // --------------------------------------------------------------------------
   function detectButtonAction(target) {
     if (!target) return null;
     const config = window.TRACKER_CONFIG || {};
 
-    if (config.SKIP_BUTTON_SELECTOR) {
-      try {
-        const skipMatch = target.closest(config.SKIP_BUTTON_SELECTOR);
-        if (skipMatch) return 'skip';
-      } catch (e) {}
-    }
+    let curr = target;
+    let depth = 0;
 
-    if (config.SUBMIT_BUTTON_SELECTOR) {
-      try {
-        const submitMatch = target.closest(config.SUBMIT_BUTTON_SELECTOR);
-        if (submitMatch) return 'submit';
-      } catch (e) {}
-    }
+    while (curr && depth < 5 && curr !== document.body) {
+      // Check configured Skip selector
+      if (config.SKIP_BUTTON_SELECTOR) {
+        try {
+          if (curr.matches(config.SKIP_BUTTON_SELECTOR)) return 'skip';
+        } catch (e) {}
+      }
 
-    const btn = target.closest('button, [role="button"], input[type="submit"], a.btn');
-    if (btn) {
-      const text = (btn.textContent || btn.innerText || btn.value || '').trim().toLowerCase();
-      if (text === 'skip' || text.includes('skip')) {
+      // Check configured Submit selector
+      if (config.SUBMIT_BUTTON_SELECTOR) {
+        try {
+          if (curr.matches(config.SUBMIT_BUTTON_SELECTOR)) return 'submit';
+        } catch (e) {}
+      }
+
+      // Check element class / id attributes
+      const idClass = (curr.id + ' ' + curr.className).toLowerCase();
+      const actionAttr = (curr.getAttribute('data-action') || '').toLowerCase();
+
+      if (actionAttr === 'skip' || idClass.includes('skip-btn') || idClass.includes('btn-skip')) {
         return 'skip';
       }
-      if (text === 'submit' || text.includes('submit') || btn.getAttribute('type') === 'submit') {
+      if (actionAttr === 'submit' || idClass.includes('submit-btn') || idClass.includes('btn-submit')) {
         return 'submit';
       }
+
+      // Check text content of buttons / clickable containers
+      const tag = curr.tagName ? curr.tagName.toLowerCase() : '';
+      const isClickable = tag === 'button' || tag === 'a' || tag === 'input' || curr.getAttribute('role') === 'button' || curr.onclick;
+      
+      if (isClickable || tag === 'button') {
+        const text = (curr.textContent || curr.innerText || curr.value || '').trim().toLowerCase();
+        if (text === 'skip') return 'skip';
+        if (text === 'submit' || curr.getAttribute('type') === 'submit') return 'submit';
+      }
+
+      curr = curr.parentElement;
+      depth++;
     }
+
+    // Direct text fallback on target
+    const targetText = (target.textContent || target.innerText || '').trim().toLowerCase();
+    if (targetText === 'skip') return 'skip';
+    if (targetText === 'submit') return 'submit';
 
     return null;
   }
 
   // --------------------------------------------------------------------------
-  // 4. CLICK EVENT LISTENER (CAPTURE PHASE)
+  // 4. CLICK EVENT LISTENER (CAPTURE PHASE ON WINDOW AND DOCUMENT)
   // --------------------------------------------------------------------------
   function handleDocumentClick(event) {
     const target = event.target;
@@ -155,7 +166,7 @@
     const debounceMs = config.DEBOUNCE_MS || 1000;
 
     if (now - lastActionTimestamp < debounceMs || processingClick) {
-      console.log(`[Rooya Tracker] Debounced ${actionType} click.`);
+      console.log(`%c[Rooya Tracker] Ignored duplicate/debounced ${actionType} click.`, 'color: #f59e0b;');
       return;
     }
 
@@ -172,15 +183,23 @@
       action: actionType
     };
 
-    console.log(`[Rooya Tracker] ${actionType.toUpperCase()} action detected:`, payload);
+    console.log(`%c[Rooya Tracker DETECTED] ${actionType.toUpperCase()} Click!`, 'color: #10b981; font-weight: bold; font-size: 16px;', payload);
 
+    // Broadcast directly to open dashboard window
+    try {
+      window.postMessage({ type: 'ROOYA_LIVE_SUBMISSION', record: payload }, '*');
+      const syncChannel = new BroadcastChannel('rooya_tracker_sync');
+      syncChannel.postMessage({ type: 'NEW_SUBMISSION', record: payload });
+    } catch (e) {}
+
+    // Send payload to background service worker
     if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
       chrome.runtime.sendMessage({ type: 'RECORD_ACTION', payload }, (response) => {
         processingClick = false;
         if (chrome.runtime.lastError) {
-          console.error('[Rooya Tracker] Messaging error:', chrome.runtime.lastError.message);
+          console.warn('[Rooya Tracker] Background communication warning:', chrome.runtime.lastError.message);
         } else if (response && response.success) {
-          console.log(`[Rooya Tracker] Action logged! User: ${userInfo.userName}, Submits: ${response.todaySubmits}`);
+          console.log('%c[Rooya Tracker SYNCED]', 'color: #38bdf8; font-weight: bold;', `Today Submits: ${response.todaySubmits}, Today Skips: ${response.todaySkips}`);
         }
       });
     } else {
@@ -188,6 +207,8 @@
     }
   }
 
+  // Attach capture listener on both window and document to catch ALL clicks across shadow DOM / frames
+  window.addEventListener('click', handleDocumentClick, true);
   document.addEventListener('click', handleDocumentClick, true);
 
 })();
