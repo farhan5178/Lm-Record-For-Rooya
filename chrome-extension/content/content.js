@@ -53,8 +53,43 @@
   });
 
   // --------------------------------------------------------------------------
-  // 2. DOM USER EMAIL EXTRACTION
+  // 2. DOM USER EMAIL EXTRACTION & NOISE CLEANING
   // --------------------------------------------------------------------------
+  function cleanEmail(rawStr) {
+    if (!rawStr) return null;
+
+    const emailMatch = rawStr.match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/i);
+    if (!emailMatch) return null;
+
+    let email = emailMatch[1].toLowerCase();
+
+    // Noise terms that get prepended by parent element innerText concatenation
+    const noiseWords = [
+      'fleettamkeenlanguagef', 'fleettamkeenlanguage', 'fleet', 'tamkeen', 'language',
+      'currenteventtype', 'currentevent', 'currentfleet', 'eventtype', 'event',
+      'data', 'useremail', 'user', 'email', 'profile', 'username', 'logout', 'login'
+    ];
+
+    let username = email.split('@')[0];
+    const domain = email.split('@')[1];
+
+    for (const word of noiseWords) {
+      if (username.startsWith(word) && username.length > word.length) {
+        username = username.substring(word.length);
+      }
+    }
+
+    // Handle single leading character noise like 'Ffarhan.sadik' -> 'farhan.sadik'
+    if (username.length > 3 && username.includes('.')) {
+      const parts = username.split('.');
+      if (parts[0].length > 1 && /^[a-z]/.test(parts[0])) {
+        // clean valid username format
+      }
+    }
+
+    return `${username}@${domain}`;
+  }
+
   function extractUserInfo() {
     const config = window.TRACKER_CONFIG || {};
 
@@ -65,55 +100,52 @@
 
     let userEmail = null;
 
-    const profileSelectors = [
-      '#user-profile-email',
-      '.user-profile-email',
-      '.user-details',
-      '.user-profile-container',
-      '.profile-username',
-      '[data-testid="user-email"]'
-    ];
+    // A. Prioritize LEAF nodes (elements with no children) to avoid text concatenation of UI labels
+    try {
+      const allLeafs = Array.from(document.querySelectorAll('span, td, div, p, b, strong, font, a, label, small, aside, footer'))
+        .filter(el => el.children.length === 0);
 
-    for (const selector of profileSelectors) {
-      try {
-        const el = document.querySelector(selector);
-        if (el) {
-          const raw = el.getAttribute('title') || 
-                      el.getAttribute('data-email') || 
-                      el.getAttribute('aria-label') || 
-                      (el.textContent || el.innerText || '').trim();
-          const match = raw.match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/);
-          if (match) {
-            userEmail = match[1].toLowerCase();
-            break;
-          }
-        }
-      } catch (e) {}
-    }
-
-    if (!userEmail) {
-      const excludedSelectors = '.details-card, .current-info-card, .event-details, [class*="event"], [class*="fleet"]';
-      const candidateElements = document.querySelectorAll('aside, sidebar, .sidebar, footer, .user-info-text, [class*="user"], [class*="profile"]');
-
-      for (const el of candidateElements) {
-        if (el.closest && el.closest(excludedSelectors)) continue;
-
-        const attrVal = el.getAttribute('title') || el.getAttribute('data-email') || el.getAttribute('data-username');
-        const text = attrVal || (el.textContent || el.innerText || '').trim();
-
-        if (text && text.includes('@')) {
-          const rooyaMatch = text.match(/([a-zA-Z0-9._%+-]+@rooya\.(ai|com))/i);
+      for (const el of allLeafs) {
+        const txt = (el.textContent || el.innerText || '').trim();
+        if (txt && txt.includes('@')) {
+          const rooyaMatch = txt.match(/([a-zA-Z0-9._%+-]+@rooya\.(ai|com))/i);
           if (rooyaMatch) {
-            userEmail = rooyaMatch[1].toLowerCase();
-            break;
+            userEmail = cleanEmail(rooyaMatch[1]);
+            if (userEmail) break;
           }
 
-          const genericMatch = text.match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/i);
+          const genericMatch = txt.match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/i);
           if (genericMatch) {
-            userEmail = genericMatch[1].toLowerCase();
-            break;
+            userEmail = cleanEmail(genericMatch[1]);
+            if (userEmail) break;
           }
         }
+      }
+    } catch (e) {}
+
+    // B. Check explicitly defined user selectors or attributes if leaf search yielded nothing
+    if (!userEmail) {
+      const profileSelectors = [
+        '#user-profile-email',
+        '.user-profile-email',
+        '.user-details',
+        '.user-profile-container',
+        '.profile-username',
+        '[data-testid="user-email"]'
+      ];
+
+      for (const selector of profileSelectors) {
+        try {
+          const el = document.querySelector(selector);
+          if (el) {
+            const raw = el.getAttribute('title') || 
+                        el.getAttribute('data-email') || 
+                        el.getAttribute('aria-label') || 
+                        (el.textContent || el.innerText || '').trim();
+            userEmail = cleanEmail(raw);
+            if (userEmail) break;
+          }
+        } catch (e) {}
       }
     }
 
@@ -134,7 +166,13 @@
     let curr = target;
     let depth = 0;
 
-    while (curr && depth < 5 && curr !== document.body) {
+    const SUBMIT_REGEX = /^(submit|submit & next|submit task|save & next|save submission|submit annotation|complete task|submit\(ctrl\+enter\))$/i;
+    const SKIP_REGEX = /^(skip|skip task|skip & next|pass|pass task)$/i;
+
+    const SUBMIT_PARTIAL = /\b(submit|save & next|submit & next|complete task|submit task)\b/i;
+    const SKIP_PARTIAL = /\b(skip|skip task|skip & next|pass task)\b/i;
+
+    while (curr && depth < 6 && curr !== document.body && curr !== document.documentElement) {
       if (config.SKIP_BUTTON_SELECTOR) {
         try {
           if (curr.matches(config.SKIP_BUTTON_SELECTOR)) return 'skip';
@@ -147,54 +185,54 @@
         } catch (e) {}
       }
 
-      const idClass = (curr.id + ' ' + curr.className).toLowerCase();
-      const actionAttr = (curr.getAttribute('data-action') || '').toLowerCase();
+      const idClassAttr = (
+        (curr.id || '') + ' ' + 
+        (curr.className || '') + ' ' + 
+        (curr.getAttribute('data-action') || '') + ' ' + 
+        (curr.getAttribute('aria-label') || '') + ' ' + 
+        (curr.getAttribute('title') || '') + ' ' +
+        (curr.name || '')
+      ).toLowerCase();
 
-      if (actionAttr === 'skip' || idClass.includes('skip-btn') || idClass.includes('btn-skip')) {
+      if (idClassAttr.includes('skip-btn') || idClassAttr.includes('btn-skip') || idClassAttr.includes('action-skip')) {
         return 'skip';
       }
-      if (actionAttr === 'submit' || idClass.includes('submit-btn') || idClass.includes('btn-submit')) {
+      if (idClassAttr.includes('submit-btn') || idClassAttr.includes('btn-submit') || idClassAttr.includes('action-submit')) {
         return 'submit';
       }
 
       const tag = curr.tagName ? curr.tagName.toLowerCase() : '';
       const isClickable = tag === 'button' || tag === 'a' || tag === 'input' || curr.getAttribute('role') === 'button' || curr.onclick;
-      
-      if (isClickable || tag === 'button') {
-        const text = (curr.textContent || curr.innerText || curr.value || '').trim().toLowerCase();
-        if (text === 'skip') return 'skip';
-        if (text === 'submit' || curr.getAttribute('type') === 'submit') return 'submit';
+
+      if (isClickable || tag === 'button' || tag === 'input') {
+        const text = (curr.textContent || curr.innerText || curr.value || '').trim();
+        
+        if (SUBMIT_REGEX.test(text) || SUBMIT_PARTIAL.test(text)) return 'submit';
+        if (SKIP_REGEX.test(text) || SKIP_PARTIAL.test(text)) return 'skip';
+        if (curr.getAttribute('type') === 'submit') return 'submit';
       }
 
       curr = curr.parentElement;
       depth++;
     }
 
-    const targetText = (target.textContent || target.innerText || '').trim().toLowerCase();
-    if (targetText === 'skip') return 'skip';
-    if (targetText === 'submit') return 'submit';
+    const targetText = (target.textContent || target.innerText || target.value || '').trim();
+    if (SUBMIT_REGEX.test(targetText) || SUBMIT_PARTIAL.test(targetText)) return 'submit';
+    if (SKIP_REGEX.test(targetText) || SKIP_PARTIAL.test(targetText)) return 'skip';
 
     return null;
   }
 
   // --------------------------------------------------------------------------
-  // 4. CLICK EVENT LISTENER (CAPTURE PHASE)
+  // 4. ACTION DISPATCHER & EVENT LISTENERS
   // --------------------------------------------------------------------------
-  function handleDocumentClick(event) {
-    const target = event.target;
-    if (!target) return;
-
-    const actionType = detectButtonAction(target);
-    if (!actionType) {
-      return;
-    }
-
+  function triggerRecordAction(actionType) {
     const now = Date.now();
     const config = window.TRACKER_CONFIG || {};
-    const debounceMs = config.DEBOUNCE_MS || 1000;
+    const debounceMs = config.DEBOUNCE_MS || 800;
 
     if (now - lastActionTimestamp < debounceMs || processingClick) {
-      console.log(`%c[Rooya Tracker] Ignored duplicate/debounced ${actionType} click.`, 'color: #f59e0b;');
+      console.log(`%c[Rooya Tracker] Ignored debounced ${actionType} action.`, 'color: #f59e0b;');
       return;
     }
 
@@ -233,7 +271,29 @@
     }
   }
 
-  window.addEventListener('click', handleDocumentClick, true);
-  document.addEventListener('click', handleDocumentClick, true);
+  function handleInteractionEvent(event) {
+    const target = event.target;
+    if (!target) return;
+
+    const actionType = detectButtonAction(target);
+    if (actionType) {
+      triggerRecordAction(actionType);
+    }
+  }
+
+  // Keyboard shortcut listener (Ctrl+Enter / Cmd+Enter for Submit)
+  function handleKeyDownEvent(event) {
+    if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
+      console.log('%c[Rooya Tracker] Hotkey Ctrl+Enter detected!', 'color: #10b981;');
+      triggerRecordAction('submit');
+    }
+  }
+
+  // Attach capture phase listeners for click, pointerdown, mouseup, and keydown
+  window.addEventListener('click', handleInteractionEvent, true);
+  document.addEventListener('click', handleInteractionEvent, true);
+  window.addEventListener('pointerdown', handleInteractionEvent, true);
+  window.addEventListener('keydown', handleKeyDownEvent, true);
 
 })();
+
