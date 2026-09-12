@@ -1,7 +1,7 @@
 /**
  * Main Controller for Rooya AI Team Lead Productivity Dashboard
  * Bridges Chrome Extension submissions and Firestore snapshots in real time.
- * Supports User and PC record deletion.
+ * Supports individual User/PC deletion and Delete All Data.
  */
 
 import { subscribeToSubmissions, isConnected } from './firebase-config.js';
@@ -19,9 +19,6 @@ document.addEventListener('DOMContentLoaded', () => {
   setupEventListeners();
 });
 
-/**
- * Setup Window PostMessage listener to receive events directly from Chrome Extension Content Script
- */
 function setupExtensionMessageBridge() {
   window.addEventListener('message', (event) => {
     if (!event.data) return;
@@ -79,6 +76,21 @@ function deletePcRecords(pcId) {
     allSubmissions = allSubmissions.filter(s => s.pcId !== pcId);
     saveLocalSubmissions();
     processAndRender();
+  }
+}
+
+function clearAllData() {
+  if (confirm('Are you sure you want to DELETE ALL USERS and reset all submission records to 0?')) {
+    allSubmissions = [];
+    try {
+      localStorage.removeItem('rooya_real_submissions');
+    } catch (e) {}
+
+    // Send clear command to Chrome Extension
+    window.postMessage({ type: 'CLEAR_EXTENSION_LOGS' }, '*');
+
+    processAndRender();
+    alert('All users and submission logs have been cleared successfully!');
   }
 }
 
@@ -472,14 +484,7 @@ function populateDropdownFilters(submissions) {
 function setupEventListeners() {
   const btnClearData = document.getElementById('btn-clear-data');
   if (btnClearData) {
-    btnClearData.addEventListener('click', () => {
-      if (confirm('Clear all test data and reset dashboard?')) {
-        localStorage.removeItem('rooya_real_submissions');
-        allSubmissions = [];
-        processAndRender();
-        requestExtensionLogs();
-      }
-    });
+    btnClearData.addEventListener('click', clearAllData);
   }
 
   document.getElementById('active-threshold').addEventListener('change', (e) => {

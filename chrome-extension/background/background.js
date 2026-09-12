@@ -61,6 +61,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  if (message.type === 'CLEAR_ALL_LOGS') {
+    handleClearAllLogs()
+      .then((res) => sendResponse({ success: true, ...res }))
+      .catch((err) => sendResponse({ success: false, error: err.message }));
+    return true;
+  }
+
   if (message.type === 'FLUSH_QUEUE') {
     flushOfflineQueue()
       .then((res) => sendResponse({ success: true, ...res }))
@@ -110,7 +117,6 @@ async function handleRecordAction(payload) {
         logs.unshift(fullRecord);
         if (logs.length > 500) logs.pop();
 
-        // Notify all open tabs so open Dashboard tabs update in real-time
         if (typeof chrome !== 'undefined' && chrome.tabs && chrome.tabs.query) {
           chrome.tabs.query({}, (tabs) => {
             tabs.forEach((tab) => {
@@ -204,5 +210,20 @@ async function handleGetAllLogs() {
         });
       }
     );
+  });
+}
+
+async function handleClearAllLogs() {
+  return new Promise((resolve) => {
+    chrome.storage.local.set({
+      submissionLogs: [],
+      todaySubmits: 0,
+      todaySkips: 0,
+      totalSubmits: 0,
+      totalSkips: 0,
+      offlineQueue: []
+    }, () => {
+      resolve({ success: true });
+    });
   });
 }
